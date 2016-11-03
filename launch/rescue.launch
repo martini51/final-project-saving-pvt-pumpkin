@@ -1,0 +1,15 @@
+<launch>
+
+<!-- Read Required Command Line Arguments: -->
+<arg name="initial_pose" default="$(find zeta_rescue)/data/initial_pose.yaml"/>
+<arg name="map_file" default="$(find zeta_rescue)/data/engeo_map.yaml"/>
+<arg name="landmark_file" default="$(find zeta_rescue)/data/landmark_file.csv"/>
+
+<!-- Load initial pose parameters from yaml file: -->
+<rosparam command="load" file="$(arg initial_pose)" />
+
+<node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+<node name="report_button" pkg="zeta_rescue" type="button.py" />
+
+
+</launch>
