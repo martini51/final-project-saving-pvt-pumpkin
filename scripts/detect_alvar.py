@@ -1,6 +1,15 @@
 from visualization_msgs.msg import Marker
 import rospy
 import time
+import map_utils
+import actionlib
+import random
+import tf
+
+from nav_msgs.msg import OccupancyGrid
+from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
+from geometry_msgs.msg import Pose, Point
+from actionlib_msgs.msg import GoalStatus
 
 class Detector(object):
 
@@ -18,27 +27,30 @@ class Detector(object):
         self.state_names[GoalStatus.RECALLED] = "RECALLED"
         self.state_names[GoalStatus.LOST] = "LOST"
         
+        rospy.Subscriber('map', OccupancyGrid, self.map_callback)
+        rospy.Subscriber('/visualization_marker', Marker, self.detect_callback)
+
+
+        self.map_msg = None
 
         while self.map_msg is None and not rospy.is_shutdown():
             rospy.loginfo("Waiting for map...")
             rospy.sleep(.1)
 
-        rospy.Subscriber('map', OccupancyGrid, self.map_callback)
-        rospy.Subscriber('/visualization_marker', Marker, self.detect_callback)
-
-        self.map_msg = None
-
         self.map = map_utils.Map(self.map_msg)
+
+        self.count = 0
 
         x_target = 0
         y_target = 0
-        while not rospy.is_shutdown():
+        while not rospy.is_shutdown() and self.count < 3:
             #while not self.map.get_cell(x_target, y_target) == 0:
 
             x_target = random.uniform(-10,10)
             y_target = random.uniform(-10,10)
 
             if self.map.get_cell(x_target, y_target) == 0:
+                self.count += 1
                 self.goto_point(x_target, y_target)
 
 #	        rospy.spin()
@@ -69,6 +81,7 @@ class Detector(object):
         return goal
 
     def goto_point(self, x_target, y_target, theta_target=0):
+
         """ Move to a location relative to the robot's current position """
 
         rospy.loginfo("navigating to: ({},{})".format(x_target, y_target))
@@ -97,6 +110,7 @@ class Detector(object):
         # Should be either "SUCCEEDED" or "ABORTED"
         state_name = self.state_names[self.ac.get_state()]
         rospy.loginfo("State      : {}".format(state_name))
+        self.count = self.count + 1
 
 if __name__ == "__main__":
     Detector()
