@@ -5,6 +5,14 @@
 <arg name="map_file" default="$(find zeta_rescue)/data/engeo_map.yaml"/>
 <arg name="landmark_file" default="$(find zeta_rescue)/data/landmark_file.csv"/>
 
+<!-- Launch minimal, rviz, amcl navigation -->
+<include file="$(find turtlebot_bringup)/launch/minimal.launch" />
+<include file="$(find turtlebot_rviz_launchers)/launch/view_navigation.launch" />
+<include file="$(find turtlebot_navigation)/launch/amcl_demo.launch">
+  <arg name="map_file" value="$(arg map_file)"/>
+</include>
+
+
 <!-- Load initial pose parameters from yaml file: -->
 <rosparam command="load" file="$(arg initial_pose)" />
 
