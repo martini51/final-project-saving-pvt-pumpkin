@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """This node repeatedly selects random map positions until it finds
   one that can be navigated to.
 
