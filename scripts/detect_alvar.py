@@ -1,20 +1,30 @@
-from visualization_msgs.msg import Marker
 import rospy
+import cv2
 import time
 import map_utils
 import actionlib
 import random
 import tf
+import detect
 
+from cv_bridge import CvBridge,CvBridgeError
+from visualization_msgs.msg import Marker
 from nav_msgs.msg import OccupancyGrid
 from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
 from geometry_msgs.msg import Pose, Point
 from actionlib_msgs.msg import GoalStatus
+from sensor_msgs.msg import Image
 
-class Detector(object):
+class Detector_Alvar(object):
 
     def __init__(self):
         rospy.init_node("detect_node")
+
+        #detect.Detector()
+
+        self.bridge = CvBridge()
+        self.imgCounter = 1
+        self.found = False
 
         self.ac = actionlib.SimpleActionClient("move_base", MoveBaseAction)
         self.state_names = {}
@@ -28,8 +38,10 @@ class Detector(object):
         self.state_names[GoalStatus.LOST] = "LOST"
         
         rospy.Subscriber('map', OccupancyGrid, self.map_callback)
+        rospy.Subscriber('/camera/rgb/image_raw',Image,self.icallback)
         rospy.Subscriber('/visualization_marker', Marker, self.detect_callback)
 
+        print "got here"        
 
         self.map_msg = None
 
@@ -41,6 +53,7 @@ class Detector(object):
 
         self.count = 0
 
+
         x_target = 0
         y_target = 0
         while not rospy.is_shutdown() and self.count < 3:
@@ -49,20 +62,36 @@ class Detector(object):
             x_target = random.uniform(-10,10)
             y_target = random.uniform(-10,10)
 
-            if self.map.get_cell(x_target, y_target) == 0:
+            if self.map.get_cell(x_target, y_target) == -15:
                 self.count += 1
                 self.goto_point(x_target, y_target)
 
-#	        rospy.spin()
+            #rospy.spin()
 
 
     def detect_callback(self, msg):
-        rospy.loginfo("Victim Found")
-        rospy.loginfo(msg)
+        if msg.pose.position.z <= .9:
+            self.found = True
+            rospy.loginfo("Victim Found")
+            rospy.loginfo(msg.pose.position)
 
     def map_callback(self, map_msg):
         """ map_msg will be of type OccupancyGrid """
         self.map_msg = map_msg
+
+    def icallback(self,img):
+        print "hi"
+        if self.imgCounter < 50 and self.found is True:
+            try:
+                self.found = False
+                cv_image = self.bridge.imgmsg_to_cv2(img,"rgb8")
+                #cv.SaveImage(str(imgCounter) + "image.jpg",cv_image)
+                cv2.imwrite(str(self.imgCounter) + "image.jpg",cv_image)
+                self.imgCounter = self.imgCounter + 1
+                print "image made"                
+            except CvBridgeError, e:
+                print "bye"
+                print e
 
     def goal_message(self, x_target, y_target, theta_target):
         """ Create a goal message in the base_link coordinate frame"""
@@ -110,7 +139,6 @@ class Detector(object):
         # Should be either "SUCCEEDED" or "ABORTED"
         state_name = self.state_names[self.ac.get_state()]
         rospy.loginfo("State      : {}".format(state_name))
-        self.count = self.count + 1
 
 if __name__ == "__main__":
-    Detector()
+    Detector_Alvar()
