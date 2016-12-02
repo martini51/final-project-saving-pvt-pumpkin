@@ -1,4 +1,4 @@
-Demonstration video: 
+Demonstration video: https://www.youtube.com/watch?v=-_vSAST8MeQ
 
 The functionality of our current code is the following: 
   - all functionality from Checkpoint 1 
