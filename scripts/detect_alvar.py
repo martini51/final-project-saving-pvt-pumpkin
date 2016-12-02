@@ -21,8 +21,6 @@ class Detector_Alvar(object):
     def __init__(self):
         rospy.init_node("detect_node")
 
-        #detect.Detector()
-
         self.bridge = CvBridge()
         self.imgCounter = 1
         self.found = False
