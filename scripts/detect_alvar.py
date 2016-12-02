@@ -39,7 +39,7 @@ class Detector_Alvar(object):
         self.state_names[GoalStatus.RECALLED] = "RECALLED"
         self.state_names[GoalStatus.LOST] = "LOST"
         
-        self.pub = rospy.Publisher('zeta_rescue/victim', Victim, queue_size=10)
+        self.pub = rospy.Publisher('victim', Victim, queue_size=10)
         rospy.Subscriber('map', OccupancyGrid, self.map_callback)
         rospy.Subscriber('/camera/rgb/image_raw',Image,self.icallback)
         rospy.Subscriber('/visualization_marker', Marker, self.detect_callback)
@@ -71,8 +71,6 @@ class Detector_Alvar(object):
                 self.count += 1
                 self.goto_point(x_target, y_target)
 
-            rospy.loginfo(self.victim)
-            self.pub.publish(self.victim)
             
 
             #rospy.spin()
@@ -84,7 +82,9 @@ class Detector_Alvar(object):
             self.found = True
             self.victim.id += 1
             rospy.loginfo("Victim Found")
-            rospy.loginfo(msg.pose.position)
+            #rospy.loginfo(msg.pose.position)
+            rospy.loginfo(self.victim)
+            self.pub.publish(self.victim)
 
     def map_callback(self, map_msg):
         """ map_msg will be of type OccupancyGrid """

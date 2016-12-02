@@ -4,7 +4,7 @@ The functionality of our current code is the following:
   - all functionality from Checkpoint 1 
   - The program now takes and saves images when the alvar marker is sensed (using the Kinect).
       - Right now several images are taken if the robot is marker is within ~2 or 3 feet from the connect becuase we determined that was the furthest from the connect while maintaining image quality.  
-  - Victim message is recorded and sent to victim topic using the correct information.
+  - Victim message is created using the image and detect callbacks, and then published to the 'victim' topic
   - Fixed from last checkpoint, rviz now correctly shows the map.
 
 What doesn't work:
@@ -20,10 +20,8 @@ To run our code (Unchanged from checkpoint 1):
 
 goals for checkpoint 3: 
   - Take images with the Logitech webcam provided and save those images (instead of the kinect images) 
-  - Figure out a correct way to mount the camera.
-  - Fix movement to be better
-  - Move back to start point
-  - Movement should move to infront of victims and take clear photos
+  - Make the positioning of the robot to take a clear photo more precise
+  - Implement a better search pattern
   - Take in command line arguments
-  - Add announcment that it is done
+  - Build the victim report
   - Add orange circle to rviz where victim is found
