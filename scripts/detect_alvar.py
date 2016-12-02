@@ -14,6 +14,7 @@ from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
 from geometry_msgs.msg import Pose, Point
 from actionlib_msgs.msg import GoalStatus
 from sensor_msgs.msg import Image
+from zeta_rescue.msg import Victim
 
 class Detector_Alvar(object):
 
@@ -23,6 +24,7 @@ class Detector_Alvar(object):
         self.bridge = CvBridge()
         self.imgCounter = 1
         self.found = False
+        self.victim = Victim()
 
         self.ac = actionlib.SimpleActionClient("move_base", MoveBaseAction)
         self.state_names = {}
@@ -35,9 +37,12 @@ class Detector_Alvar(object):
         self.state_names[GoalStatus.RECALLED] = "RECALLED"
         self.state_names[GoalStatus.LOST] = "LOST"
         
+        self.pub = rospy.Publisher('zeta_rescue/victim', Victim, queue_size=10)
         rospy.Subscriber('map', OccupancyGrid, self.map_callback)
         rospy.Subscriber('/camera/rgb/image_raw',Image,self.icallback)
         rospy.Subscriber('/visualization_marker', Marker, self.detect_callback)
+        #pub.publish(self.victim)
+        #self.victim.id += 1
 
         print "got here"        
 
@@ -64,12 +69,18 @@ class Detector_Alvar(object):
                 self.count += 1
                 self.goto_point(x_target, y_target)
 
+            rospy.loginfo(self.victim)
+            self.pub.publish(self.victim)
+            
+
             #rospy.spin()
 
 
     def detect_callback(self, msg):
         if msg.pose.position.z <= .9:
+            self.victim.point = msg.pose.position
             self.found = True
+            self.victim.id += 1
             rospy.loginfo("Victim Found")
             rospy.loginfo(msg.pose.position)
 
@@ -78,9 +89,10 @@ class Detector_Alvar(object):
         self.map_msg = map_msg
 
     def icallback(self,img):
-        print "hi"
         if self.imgCounter < 50 and self.found is True:
             try:
+                self.victim.image = img
+                self.pub.publish(self.victim)
                 self.found = False
                 cv_image = self.bridge.imgmsg_to_cv2(img,"rgb8")
                 #cv.SaveImage(str(imgCounter) + "image.jpg",cv_image)
