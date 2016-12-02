@@ -2,7 +2,7 @@ Demonstration video:
 
 The functionality of our current code is the following: 
   - all functionality from Checkpoint 1 
-  - The program now takes and saves images when the alvar marker is sensed (using the connect).
+  - The program now takes and saves images when the alvar marker is sensed (using the Kinect).
       - Right now several images are taken if the robot is marker is within ~2 or 3 feet from the connect becuase we determined that was the furthest from the connect while maintaining image quality.  
   - Victim message is recorded and sent to victim topic using the correct information.
   - Fixed from last checkpoint, rviz now correctly shows the map.
