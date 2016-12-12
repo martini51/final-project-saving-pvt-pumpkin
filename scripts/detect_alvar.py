@@ -65,12 +65,11 @@ class Detector_Alvar(object):
             x_target = random.uniform(-10,10)
             y_target = random.uniform(-10,10)
 
-            if self.map.get_cell(x_target, y_target) == -15:
-                self.count += 1
-                self.goto_point(x_target, y_target)
-
-            rospy.loginfo(self.victim)
-            self.pub.publish(self.victim)
+            if self.map.get_cell(x_target, y_target) == 0:
+                if self.checkPoint(self,x_target,y_target):
+                    self.count += 1
+                    self.goto_point(x_target, y_target)
+                
             
 
             #rospy.spin()
@@ -82,7 +81,9 @@ class Detector_Alvar(object):
             self.found = True
             self.victim.id += 1
             rospy.loginfo("Victim Found")
-            rospy.loginfo(msg.pose.position)
+            rospy.loginfo(self.victim)
+            self.pub.publish(self.victim)
+            #rospy.loginfo(msg.pose.position)
 
     def map_callback(self, map_msg):
         """ map_msg will be of type OccupancyGrid """
@@ -149,6 +150,49 @@ class Detector_Alvar(object):
         # Should be either "SUCCEEDED" or "ABORTED"
         state_name = self.state_names[self.ac.get_state()]
         rospy.loginfo("State      : {}".format(state_name))
+
+    def checkPoint(self,x,y): #break into 2 methods one for if its good to go second for filling in points
+        slope = 0
+        
+        for point in self.listOfPoints:
+            #if point is too close to an already-traversed point
+            if (point[0] + self.thresh_hold <= x - self.thresh_hold or point[0] - self.thresh_hold >= x + self.thresh_hold) or (point[1] + self.thresh_hold <= y - self.thresh_hold or point[1] - self.thresh_hold >= y + self.thresh_hold):
+                self.goodToGo = True
+            else:
+                self.goodToGo = False
+                break
+
+        if self.goodToGo:
+            self.checkPosOrNeg(x,y)
+            if x-self.curX != 0:
+                slope = (y-self.curY)/(x-self.curX)
+                intercept = y - (slope * x)
+                self.listOfPoints.append((x+(1*self.xpositive),(x+(1*self.xpositive))*slope+intercept))
+                for val in range(1,int(math.floor(abs(x-self.curX))+1)):
+                    self.listOfPoints.append((self.curX+(val*self.xpositive),(self.curX+(val*self.xpositive))*slope+intercept))
+
+            else:
+                self.listOfPoints.append((x,y+(1*self.ypositive)))
+                for val in range(1,int(math.floor(abs(y-self.curY))+1)):
+                    self.listOfPoints.append((self.curX,self.curY + (val*self.ypositive)))
+                
+
+            self.curX = x
+            self.curY = y
+                    
+        print self.listOfPoints
+        print "##########################################################"
+
+    def checkPosOrNeg(self,x,y):
+        if self.curX - x > 0:
+            self.xpositive = -1
+        else:
+            self.xpositive = 1
+
+        if self.curY - y > 0:
+            self.ypositive = -1
+        else:
+            self.ypositive = 1
 
 if __name__ == "__main__":
     Detector_Alvar()
