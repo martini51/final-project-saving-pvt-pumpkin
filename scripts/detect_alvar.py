@@ -6,6 +6,7 @@ import actionlib
 import random
 import tf
 import detect
+import math
 
 from cv_bridge import CvBridge,CvBridgeError
 from visualization_msgs.msg import Marker
@@ -25,6 +26,13 @@ class Detector_Alvar(object):
         self.imgCounter = 1
         self.found = False
         self.victim = Victim()
+        self.thresh_hold = 1
+        self.curX = 2.86	 #hardcoded based off of current intital_pose.yaml
+	self.curY = -1.77	 #hardcoded based off of current intital_pose.yaml
+	self.listOfPoints = [(self.curX, self.curY)]
+	self.first = True
+	self.xpostive = 1
+	self.ypostive = 1
 
         self.ac = actionlib.SimpleActionClient("move_base", MoveBaseAction)
         self.state_names = {}
@@ -56,6 +64,7 @@ class Detector_Alvar(object):
 
         self.count = 0
 
+	print "found map"
 
         x_target = 0
         y_target = 0
@@ -64,9 +73,10 @@ class Detector_Alvar(object):
 
             x_target = random.uniform(-10,10)
             y_target = random.uniform(-10,10)
-
+	    print "try random point: ", x_target, ", ", y_target
             if self.map.get_cell(x_target, y_target) == 0:
-                if self.checkPoint(self,x_target,y_target):
+                if self.checkPoint(x_target,y_target):
+		    print "point was valid. going to", x_target,", ", y_target
                     self.count += 1
                     self.goto_point(x_target, y_target)
             
@@ -98,7 +108,7 @@ class Detector_Alvar(object):
                 #cv.SaveImage(str(imgCounter) + "image.jpg",cv_image)
                 cv2.imwrite(str(self.imgCounter) + "image.jpg",cv_image)
                 self.imgCounter = self.imgCounter + 1
-                print "image made"                
+                print "image made"
             except CvBridgeError, e:
                 print "bye"
                 print e
@@ -174,13 +184,14 @@ class Detector_Alvar(object):
                 self.listOfPoints.append((x,y+(1*self.ypositive)))
                 for val in range(1,int(math.floor(abs(y-self.curY))+1)):
                     self.listOfPoints.append((self.curX,self.curY + (val*self.ypositive)))
-                
 
             self.curX = x
             self.curY = y
+	return self.goodToGo
+	
                     
-        print self.listOfPoints
-        print "##########################################################"
+#        print self.listOfPoints
+#        print "##########################################################"
 
     def checkPosOrNeg(self,x,y):
         if self.curX - x > 0:
