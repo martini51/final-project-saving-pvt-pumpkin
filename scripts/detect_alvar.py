@@ -65,18 +65,10 @@ class Detector_Alvar(object):
             x_target = random.uniform(-10,10)
             y_target = random.uniform(-10,10)
 
-<<<<<<< HEAD
             if self.map.get_cell(x_target, y_target) == 0:
                 if self.checkPoint(self,x_target,y_target):
                     self.count += 1
                     self.goto_point(x_target, y_target)
-                
-=======
-            if self.map.get_cell(x_target, y_target) == -15:
-                self.count += 1
-                self.goto_point(x_target, y_target)
-
->>>>>>> 8376919f1794b88afe8d296474cb89fd972b0339
             
 
             #rospy.spin()
@@ -88,15 +80,9 @@ class Detector_Alvar(object):
             self.found = True
             self.victim.id += 1
             rospy.loginfo("Victim Found")
-<<<<<<< HEAD
             rospy.loginfo(self.victim)
             self.pub.publish(self.victim)
             #rospy.loginfo(msg.pose.position)
-=======
-            #rospy.loginfo(msg.pose.position)
-            rospy.loginfo(self.victim)
-            self.pub.publish(self.victim)
->>>>>>> 8376919f1794b88afe8d296474cb89fd972b0339
 
     def map_callback(self, map_msg):
         """ map_msg will be of type OccupancyGrid """
