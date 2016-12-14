@@ -105,12 +105,12 @@ class Detector_Alvar(object):
                 self.tf_listener.waitForTransform(point_stamped.header.frame_id,
                 '/map',     # to here 
                 point_stamped.header.stamp,
-                rospy.Duration(1.0))
+                rospy.Duration(2.0))
 
                 self.tf_listener.waitForTransform(point_stamped.header.frame_id,
                 '/base_link',     # to here 
                 point_stamped.header.stamp,
-                rospy.Duration(1.0))
+                rospy.Duration(2.0))
 
                 marker_map = self.tf_listener.transformPoint('/map', point_stamped)
 
@@ -131,8 +131,10 @@ class Detector_Alvar(object):
     
                 self.goto_point(local_goal.point.x,local_goal.point.y)
             else:
-                print "in sub-if-check1(else)/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
-                self.finding = True #???? rm
+                self.finding = True
+        else:
+            print "in sub-if-check1(else)/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
+            self.finding = True #???? rm
 
         if msg.pose.position.z <= .9 and not self.closeToVictimforPicture:# and self.closeToVictimforPicture: ##stuff in here might need to be redone to fit current logic not sure as of now
             print "in if-check2/detect_callback/Detector_Alvar/detect_alvar.py"
@@ -169,7 +171,7 @@ class Detector_Alvar(object):
                 self.takeOnePicture = False
                 self.victim.image = img
                 #self.pub.publish(self.victim)               
-                cv_image = self.bridge.imgmsg_to_cv2(img,"rgb8")
+                cv_image = self.bridge.imgmsg_to_cv2(img,"bgr8")
                 cv2.imwrite(str(self.imgCounter) + "image.jpg",cv_image)
                 self.imgCounter = self.imgCounter + 1
                 print "image made"
@@ -239,7 +241,7 @@ class Detector_Alvar(object):
         self.tf_listener.waitForTransform(point_stamped.header.frame_id,
         '/map',     # to here 
         point_stamped.header.stamp,
-        rospy.Duration(1.0))
+        rospy.Duration(2.0))
 
         local_goal = self.tf_listener.transformPoint('/map', point_stamped)
 
