@@ -163,6 +163,9 @@ class Detector_Alvar(object):
         """ Create a goal message in the base_link coordinate frame"""
 
         quat = tf.transformations.quaternion_from_euler(0, 0, theta_target)
+
+        goal = MoveBaseGoal()
+		
         # Create a goal message ...
         goal = MoveBaseGoal() #needed?
         goal.target_pose.header.frame_id = "map"
