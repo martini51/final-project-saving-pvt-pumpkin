@@ -12,7 +12,7 @@ from cv_bridge import CvBridge,CvBridgeError
 from visualization_msgs.msg import Marker
 from nav_msgs.msg import OccupancyGrid
 from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
-from geometry_msgs.msg import Pose, Point
+from geometry_msgs.msg import Pose, Point, PointStamped
 from actionlib_msgs.msg import GoalStatus
 from sensor_msgs.msg import Image
 from zeta_rescue.msg import Victim
@@ -20,23 +20,33 @@ from zeta_rescue.msg import Victim
 class Detector_Alvar(object):
 
     def __init__(self):
+        print "in init/Detector_Alvar/detect_alvar.py"
         rospy.init_node("detect_node")
 
+
+        self.founded = False
+        self.found = False
         self.finding = True
+
+        self.tf_listener = tf.TransformListener()
+
+
         self.listOfVictims = []
         self.bridge = CvBridge()
         self.map_msg = None
         self.imgCounter = 1
-        self.found = False
         self.victim = Victim()
-        self.thresh_hold = 1
-        self.victim_hold = .1
+        self.thresh_hold = .5
+        self.victim_hold = .05
         self.curX = 2.86     #hardcoded based off of current intital_pose.yaml
         self.curY = -1.77     #hardcoded based off of current intital_pose.yaml
         self.listOfPoints = [(self.curX, self.curY)]
         self.first = True
         self.xpostive = 1
         self.ypostive = 1
+
+        self.victim.id = 1
+        self.ID = 1
 
         self.ac = actionlib.SimpleActionClient("move_base", MoveBaseAction)
         self.state_names = {}
@@ -55,6 +65,7 @@ class Detector_Alvar(object):
         rospy.Subscriber('/visualization_marker', Marker, self.detect_callback)
 
         while self.map_msg is None and not rospy.is_shutdown():
+            print "in while-loop1/init/Detector_Alvar/detect_alvar.py"
             rospy.loginfo("Waiting for map...")
             rospy.sleep(.1)
 
@@ -63,49 +74,83 @@ class Detector_Alvar(object):
         self.count = 0
         x_target = 0
         y_target = 0
-        while not rospy.is_shutdown() and self.count < 3:
+        while not rospy.is_shutdown() and self.finding:
+            #print "in while-loop2/init/Detector_Alvar/detect_alvar.py"
             #while not self.map.get_cell(x_target, y_target) == 0:
             x_target = random.uniform(-10,10)
             y_target = random.uniform(-10,10)
-            print "try random point: ", x_target, ", ", y_target
+            #print "try random point: ", x_target, ", ", y_target
             if self.map.get_cell(x_target, y_target) == 0:
                 if self.checkPoint(x_target,y_target):
                     print "point was valid. going to", x_target,", ", y_target
-                    self.count += 1
+                    #self.count += 1
                     self.goto_point(x_target, y_target)
+                    while(not self.finding):
+                        rospy.sleep(.1)
 
     def detect_callback(self, msg):
+        print "in detect_callback/Detector_Alvar/detect_alvar.py"
         if self.finding:
+            print "in if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
             self.finding = False
-            if newVictim(msg):
+            if  (msg.pose.position.y < 0.3 and msg.pose.position.y >= -0.3) and self.newVictim(msg):
+                print "in sub-if-check1/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
                 self.ac.cancel_all_goals()
-                #get current x and y and pass them into addpoints
-                #self.goto_point(infront of victim with .9 distance away)
-                #self.goto_point(where robot was before going to infront of victim)
-            else:
-                self.finding = True
+                print "should have aborted all goals"
+                point_stamped = PointStamped()
+                point_stamped.header = msg.header
+                point_stamped.point = msg.pose.position
 
-        if msg.pose.position.z <= .9: ######stuff in here might need to be redone to fit current logic not sure as of now
+                marker_map = self.tf_listener.transformPoint('/map', point_stamped)
+
+                marker_base = self.tf_listener.transformPoint('/map', point_stamped)
+
+                local_goal = PointStamped()
+                local_goal.point.x = marker_base.point.x - .3
+                local_goal.point.y = marker_base.point.y
+                
+    
+                self.goto_point(local_goal.point.x,local_goal.point.y)
+            else:
+                print "in sub-if-check1(else)/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
+                self.finding = True #???? rm
+
+        if msg.pose.position.z <= .5 and not self.founded:# and self.founded: ##stuff in here might need to be redone to fit current logic not sure as of now
+            print "in if-check2/detect_callback/Detector_Alvar/detect_alvar.py"
+            self.founded = True
             self.found = True
-            self.victim.point = msg.pose.position
-            self.victim.id += 1
-            rospy.loginfo("Victim Found")
-            rospy.loginfo(self.victim)
-            self.pub.publish(self.victim)
+            self.ac.cancel_all_goals()
+            time.sleep(1)
+            self.finding = True
+            #self.founded = False
+            #self.victim.point = msg.pose.position
+            #self.victim.id += 1
+            #rospy.loginfo("Victim Found")
+            #rospy.loginfo(self.victim)
+            #self.pub.publish(self.victim)
             #rospy.loginfo(msg.pose.position)
+            #print "\nx: " + str(msg.pose.position.x)
+            #print "\ny: " + str(msg.pose.position.y)
+            #print "\nz: " + str(msg.pose.position.z)
+
+        if msg.pose.position.z <= .5:
+            self.found = True
 
     def map_callback(self, map_msg):
+        print "in map_callback/Detector_Alvar/detect_alvar.py"
         """ map_msg will be of type OccupancyGrid """
         self.map_msg = map_msg
 
+    #THIS HANDLES PICTURE-TAKING CAPABILITY
     def icallback(self,img):
-        if self.imgCounter < 50 and self.found is True:
+        #print "in icallback/Detector_Alvar/detect_alvar.py"
+        if self.imgCounter < 50 and self.found:
+            print "in if-check1/icallback/Detector_Alvar/detect_alvar.py"
             try:
                 self.found = False
                 self.victim.image = img
-                self.pub.publish(self.victim)               
+                #self.pub.publish(self.victim)               
                 cv_image = self.bridge.imgmsg_to_cv2(img,"rgb8")
-                #cv.SaveImage(str(imgCounter) + "image.jpg",cv_image)
                 cv2.imwrite(str(self.imgCounter) + "image.jpg",cv_image)
                 self.imgCounter = self.imgCounter + 1
                 print "image made"
@@ -114,10 +159,12 @@ class Detector_Alvar(object):
                 print e
 
     def goal_message(self, x_target, y_target, theta_target):
+        print "in goal_message/Detector_Alvar/detect_alvar.py"
         """ Create a goal message in the base_link coordinate frame"""
 
         quat = tf.transformations.quaternion_from_euler(0, 0, theta_target)
         # Create a goal message ...
+        goal = MoveBaseGoal() #needed?
         goal.target_pose.header.frame_id = "map"
         goal.target_pose.header.stamp = rospy.get_rostime()
         goal.target_pose.pose.position.x = x_target
@@ -129,6 +176,7 @@ class Detector_Alvar(object):
         return goal
 
     def goto_point(self, x_target, y_target, theta_target=0):
+        print "in goto_point/Detector_Alvar/detect_alvar.py"
 
         """ Move to a location relative to the robot's current position """
 
@@ -162,17 +210,34 @@ class Detector_Alvar(object):
 
     def newVictim(self,msg):####################  the x will fail here but you can get the x from the msg.pose.x or whatever 
         #will check if the position is a new victim
+        point_stamped = PointStamped()
+        point_stamped.header = msg.header
+        point_stamped.point = msg.pose.position
+
+        local_goal = self.tf_listener.transformPoint('/map', point_stamped)
+
         if len(self.listOfVictims) != 0:
             for point in self.listOfVictims:
-                if (point[0] + self.victim_hold <= x - self.victim_hold or point[0] - self.victim_hold >= x + self.victim_hold) or (point[1] + self.victim_hold <= y - self.victim_hold or point[1] - self.victim_hold >= y + self.thresh_hold):
+                if (point[1] + self.victim_hold <= point_stamped.point.x
+                    or point[1] - self.victim_hold >= x
+                    or point[2] + self.victim_hold <= y
+                    or point[2] - self.victim_hold >= point_stamped.point.y
+                    or point[3] + self.victim_hold <= point_stamped.point.z
+                    or point[3] - self.victim_hold >= point_stamped.point.z):
                     newVictim = True
                 else:
                     newVictim = False
                     break
         else:
+            self.listOfVictims.append((self.ID, local_goal.point.x, local_goal.point.y, local_goal.point.z))
+            self.victim.id += 1
+            self.ID += 1
             return True
+
         if newVictim:
-            #add new victim x and y to victim list
+            self.listOfVictims.append((self.ID, local_goal.point.x, local_goal.point.y, local_goal.point.z))	
+            self.victim.id += 1
+            self.ID += 1
             return True
         else:
             return False
@@ -180,11 +245,11 @@ class Detector_Alvar(object):
     def checkPoint(self,x,y):
         for point in self.listOfPoints:
             #if point is too close to an already-traversed point
-            if (point[0] + self.thresh_hold <= x - self.thresh_hold or point[0] - self.thresh_hold >= x + self.thresh_hold) or (point[1] + self.thresh_hold <= y - self.thresh_hold or point[1] - self.thresh_hold >= y + self.thresh_hold):
-                self.goodToGo = True
-            else:
-                self.goodToGo = False
-                break
+                if (point[0] + self.thresh_hold <= x - self.thresh_hold or point[0] - self.thresh_hold >= x + self.thresh_hold) or (point[1] + self.thresh_hold <= y - self.thresh_hold or point[1] - self.thresh_hold >= y + self.thresh_hold):
+                    self.goodToGo = True
+                else:
+                    self.goodToGo = False
+                    break
 
         return self.goodToGo
 
