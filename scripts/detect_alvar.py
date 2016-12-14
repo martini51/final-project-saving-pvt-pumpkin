@@ -38,6 +38,10 @@ class Detector_Alvar(object):
         self.xpostive = 1
         self.ypostive = 1
 
+        self.tf_listener = tf.TransformListener()
+
+        self.goal = MoveBaseGoal()
+
         self.ac = actionlib.SimpleActionClient("move_base", MoveBaseAction)
         self.state_names = {}
         self.state_names[GoalStatus.PENDING] = "PENDING"
@@ -87,6 +91,9 @@ class Detector_Alvar(object):
 
         if msg.pose.position.z <= .9: ######stuff in here might need to be redone to fit current logic not sure as of now
             self.found = True
+
+            #self.victim.point = self.tf_listener.transformPoint('/base_link', msg.pose.position)
+
             self.victim.point = msg.pose.position
             self.victim.id += 1
             rospy.loginfo("Victim Found")
@@ -102,7 +109,7 @@ class Detector_Alvar(object):
         if self.imgCounter < 50 and self.found is True:
             try:
                 self.found = False
-                self.victim.image = img
+                #self.victim.image = img
                 self.pub.publish(self.victim)               
                 cv_image = self.bridge.imgmsg_to_cv2(img,"rgb8")
                 #cv.SaveImage(str(imgCounter) + "image.jpg",cv_image)
@@ -117,6 +124,9 @@ class Detector_Alvar(object):
         """ Create a goal message in the base_link coordinate frame"""
 
         quat = tf.transformations.quaternion_from_euler(0, 0, theta_target)
+
+        goal = MoveBaseGoal()
+		
         # Create a goal message ...
         goal.target_pose.header.frame_id = "map"
         goal.target_pose.header.stamp = rospy.get_rostime()
