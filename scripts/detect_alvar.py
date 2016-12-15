@@ -238,10 +238,10 @@ class Detector_Alvar(object):
         point_stamped.header = msg.header
         point_stamped.point = msg.pose.position
 
-        self.tf_listener.waitForTransform(point_stamped.header.frame_id,
-        '/map',     # to here 
-        point_stamped.header.stamp,
-        rospy.Duration(2.0))
+        #self.tf_listener.waitForTransform(point_stamped.header.frame_id,
+        #'/map',     # to here 
+        #point_stamped.header.stamp,
+        #rospy.Duration(2.0))
 
         local_goal = self.tf_listener.transformPoint('/map', point_stamped)
 
