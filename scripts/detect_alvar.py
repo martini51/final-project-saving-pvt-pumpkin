@@ -27,6 +27,7 @@ class Detector_Alvar(object):
         self.closeToVictimforPicture = False
         self.takeOnePicture = False
         self.finding = True
+        self.doNewVictim = True
 
         self.tf_listener = tf.TransformListener()
 
@@ -36,8 +37,8 @@ class Detector_Alvar(object):
         self.map_msg = None
         self.imgCounter = 1
         self.victim = Victim()
-        self.thresh_hold = .5
-        self.victim_hold = .05
+        self.thresh_hold = 1
+        self.victim_hold = .3
         self.curX = 2.86     #hardcoded based off of current intital_pose.yaml
         self.curY = -1.77     #hardcoded based off of current intital_pose.yaml
         self.listOfPoints = [(self.curX, self.curY)]
@@ -93,55 +94,57 @@ class Detector_Alvar(object):
         if self.finding:
             print "in if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
             self.finding = False
-            if  (msg.pose.position.y < 0.3 and msg.pose.position.y >= -0.3) and self.newVictim(msg):
-                print "in sub-if-check1/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
-                self.ac.cancel_all_goals()
-                print "should have aborted all goals"
-                self.closeToVictimforPicture = False
-                point_stamped = PointStamped()
-                point_stamped.header = msg.header
-                point_stamped.point = msg.pose.position
+            if  (msg.pose.position.y < 0.3 and msg.pose.position.y >= -0.3):
+                if self.doNewVictim and self.newVictim(msg):
+                    self.doNewVictim = False
+                    print "in sub-if-check1/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
+                    self.ac.cancel_all_goals()
+                    print "should have aborted all goals"
+                    self.closeToVictimforPicture = False
+                    point_stamped = PointStamped()
+                    point_stamped.header = msg.header
+                    point_stamped.point = msg.pose.position
 
-                self.tf_listener.waitForTransform(point_stamped.header.frame_id,
-                '/map',     # to here 
-                point_stamped.header.stamp,
-                rospy.Duration(2.0))
+                    self.tf_listener.waitForTransform(point_stamped.header.frame_id,
+                    '/map',     # to here 
+                    point_stamped.header.stamp,
+                    rospy.Duration(1.0))
 
-                self.tf_listener.waitForTransform(point_stamped.header.frame_id,
-                '/base_link',     # to here 
-                point_stamped.header.stamp,
-                rospy.Duration(2.0))
+                    self.tf_listener.waitForTransform(point_stamped.header.frame_id,
+                    '/base_link',     # to here 
+                    point_stamped.header.stamp,
+                    rospy.Duration(1.0))
 
-                marker_map = self.tf_listener.transformPoint('/map', point_stamped)
+                    marker_map = self.tf_listener.transformPoint('/map', point_stamped)
 
-                marker_base = self.tf_listener.transformPoint('/base_link', point_stamped)
+                    marker_base = self.tf_listener.transformPoint('/base_link', point_stamped)
 
-                marker_base.point.x -= .2
+                    marker_base.point.x -= .5
 
-                self.tf_listener.waitForTransform(marker_base.header.frame_id,
-                '/map',     # to here 
-                marker_base.header.stamp,
-                rospy.Duration(1.0))				
+                    self.tf_listener.waitForTransform(marker_base.header.frame_id,
+                    '/map',     # to here 
+                    marker_base.header.stamp,
+                    rospy.Duration(1.0))				
 
-                local_goal = PointStamped()
+                    local_goal = PointStamped()
 
-                local_goal = self.tf_listener.transformPoint('/map', marker_base)
-
-                
-    
-                self.goto_point(local_goal.point.x,local_goal.point.y)
+                    local_goal = self.tf_listener.transformPoint('/map', marker_base)
+                    self.goto_point(local_goal.point.x,local_goal.point.y)
+                    self.doNewVictim = True
+                else:
+                    self.doNewVictim = True
             else:
                 self.finding = True
         else:
             print "in sub-if-check1(else)/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
             self.finding = True #???? rm
 
-        if msg.pose.position.z <= .9 and not self.closeToVictimforPicture:# and self.closeToVictimforPicture: ##stuff in here might need to be redone to fit current logic not sure as of now
+        if msg.pose.position.z <= .3 and not self.closeToVictimforPicture:# and self.closeToVictimforPicture: ##stuff in here might need to be redone to fit current logic not sure as of now
             print "in if-check2/detect_callback/Detector_Alvar/detect_alvar.py"
             self.closeToVictimforPicture = True
             self.ac.cancel_all_goals()
             self.takeOnePicture = True
-            time.sleep(5)
+            #rospy.sleep(1)
             self.finding = True
             #self.closeToVictimforPicture = False
             #self.victim.point = msg.pose.position
@@ -171,7 +174,7 @@ class Detector_Alvar(object):
                 self.takeOnePicture = False
                 self.victim.image = img
                 #self.pub.publish(self.victim)               
-                cv_image = self.bridge.imgmsg_to_cv2(img,"bgr8")
+                cv_image = self.bridge.imgmsg_to_cv2(img,"rgb8")
                 cv2.imwrite(str(self.imgCounter) + "image.jpg",cv_image)
                 self.imgCounter = self.imgCounter + 1
                 print "image made"
@@ -241,18 +244,18 @@ class Detector_Alvar(object):
         self.tf_listener.waitForTransform(point_stamped.header.frame_id,
         '/map',     # to here 
         point_stamped.header.stamp,
-        rospy.Duration(2.0))
+        rospy.Duration(1.0))
 
         local_goal = self.tf_listener.transformPoint('/map', point_stamped)
 
         if len(self.listOfVictims) != 0:
             for point in self.listOfVictims:
-                if (point[1] + self.victim_hold <= point_stamped.point.x
-                    or point[1] - self.victim_hold >= x
-                    or point[2] + self.victim_hold <= y
-                    or point[2] - self.victim_hold >= point_stamped.point.y
-                    or point[3] + self.victim_hold <= point_stamped.point.z
-                    or point[3] - self.victim_hold >= point_stamped.point.z):
+                if (point[1] + self.victim_hold <= local_goal.point.x
+                    or point[1] - self.victim_hold >= local_goal.point.x
+                    or point[2] + self.victim_hold <= local_goal.point.y
+                    or point[2] - self.victim_hold >= local_goal.point.y
+                    or point[3] + self.victim_hold <= local_goal.point.z
+                    or point[3] - self.victim_hold >= local_goal.point.z):
                     newVictim = True
                 else:
                     newVictim = False
@@ -299,7 +302,7 @@ class Detector_Alvar(object):
             for val in range(1,int(math.floor(abs(y-self.curY))+1)):
                 self.listOfPoints.append((self.curX,self.curY + (val*self.ypositive)))
 
-        self.curX = x
+        self.curX = xF
         self.curY = y
 
     def checkPosOrNeg(self,x,y):
