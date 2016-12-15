@@ -23,11 +23,15 @@ class Detector_Alvar(object):
         print "in init/Detector_Alvar/detect_alvar.py"
         rospy.init_node("detect_node")
 
-
+        mins = 4
         self.closeToVictimforPicture = False
         self.takeOnePicture = False
         self.finding = True
         self.doNewVictim = True
+        self.finishedGoingHome = False
+        self.time = 60*mins
+        self.startTime = None
+        self.ranTime = None
 
         self.tf_listener = tf.TransformListener()
 
@@ -67,16 +71,19 @@ class Detector_Alvar(object):
         rospy.Subscriber('/visualization_marker', Marker, self.detect_callback,queue_size=1)
 
         while self.map_msg is None and not rospy.is_shutdown():
-            print "in while-loop1/init/Detector_Alvar/detect_alvar.py"
+            #print "in while-loop1/init/Detector_Alvar/detect_alvar.py"
             rospy.loginfo("Waiting for map...")
             rospy.sleep(.1)
 
         self.map = map_utils.Map(self.map_msg)
 
+        while self.startTime is None:
+            self.startTime = self.map_msg.header.stamp
+
         self.count = 0
         x_target = 0
         y_target = 0
-        while not rospy.is_shutdown() and self.finding and len(self.listOfVictims) != 2:
+        while not rospy.is_shutdown() and self.finding and len(self.listOfVictims) != 4 and (self.time - (self.ranTime.secs - self.startTime.secs)) > 30:
             #print "in while-loop2/init/Detector_Alvar/detect_alvar.py"
             #while not self.map.get_cell(x_target, y_target) == 0:
             x_target = random.uniform(-10,10)
@@ -90,95 +97,101 @@ class Detector_Alvar(object):
                     while(not self.finding and not rospy.is_shutdown()):
                         rospy.sleep(.1)
 
+        self.finishedGoingHome = True
+
         self.goto_point(self.curX, self.curY)
+        print "done victims are here \n" + str(self.listOfVictims)
 
     def detect_callback(self, msg):
         #print "in detect_callback/Detector_Alvar/detect_alvar.py"
-        if self.finding:
-            #print "in if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
-            self.finding = False
-            if  (msg.pose.position.y < 0.3 and msg.pose.position.y >= -0.3):
-                if self.doNewVictim and self.newVictim(msg):
-                    self.doNewVictim = False
-                    print "in sub-if-check1/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
-                    self.ac.cancel_all_goals()
-                    print "@@@@@@@@@@@@@@@@@@@@should have aborted all goals"
-                    self.closeToVictimforPicture = False
-                    point_stamped = PointStamped()
-                    point_stamped.header = msg.header
-                    point_stamped.point = msg.pose.position
+        if not self.finishedGoingHome:
+            if self.finding:
+                #print "in if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
+                self.finding = False
+                if  (msg.pose.position.y < 0.3 and msg.pose.position.y >= -0.3):
+                    if self.doNewVictim and self.newVictim(msg):
+                        self.doNewVictim = False
+                        #print "in sub-if-check1/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
+                        self.ac.cancel_all_goals()
+                        #print "@@@@@@@@@@@@@@@@@@@@should have aborted all goals"
+                        self.closeToVictimforPicture = False
+                        point_stamped = PointStamped()
+                        point_stamped.header = msg.header
+                        point_stamped.point = msg.pose.position
 
-                    self.tf_listener.waitForTransform(point_stamped.header.frame_id,
-                    '/map',     # to here 
-                    point_stamped.header.stamp,
-                    rospy.Duration(1.0))
+                        self.tf_listener.waitForTransform(point_stamped.header.frame_id,
+                        '/map',     # to here 
+                        point_stamped.header.stamp,
+                        rospy.Duration(1.0))
 
-                    self.tf_listener.waitForTransform(point_stamped.header.frame_id,
-                    '/base_link',     # to here 
-                    point_stamped.header.stamp,
-                    rospy.Duration(1.0))
+                        self.tf_listener.waitForTransform(point_stamped.header.frame_id,
+                        '/base_link',     # to here 
+                        point_stamped.header.stamp,
+                        rospy.Duration(1.0))
 
-                    marker_map = self.tf_listener.transformPoint('/map', point_stamped)
+                        marker_map = self.tf_listener.transformPoint('/map', point_stamped)
 
-                    marker_base = self.tf_listener.transformPoint('/base_link', point_stamped)
+                        marker_base = self.tf_listener.transformPoint('/base_link', point_stamped)
 
-                    marker_base.point.x -= .4
+                        self.victim.point = marker_map.point
 
-                    self.tf_listener.waitForTransform(marker_base.header.frame_id,
-                    '/map',     # to here 
-                    marker_base.header.stamp,
-                    rospy.Duration(1.0))				
+                        marker_base.point.x -= .4
 
-                    local_goal = PointStamped()
+                        self.tf_listener.waitForTransform(marker_base.header.frame_id,
+                        '/map',     # to here 
+                        marker_base.header.stamp,
+                        rospy.Duration(1.0))				
 
-                    local_goal = self.tf_listener.transformPoint('/map', marker_base)
-                    twist = Twist()
-                    twist.linear.y = 0
-                    twist.linear.z = 0
-                    twist.angular.x = 0
-                    twist.angular.y = 0
-                    if msg.pose.position.x < .1 and msg.pose.position.x > -.1:
-                        twist.angular.z = 0
-                    elif msg.pose.position.x > .2:
-                        twist.angular.z = 3.14/4
+                        local_goal = PointStamped()
+
+                        local_goal = self.tf_listener.transformPoint('/map', marker_base)
+                        twist = Twist()
+                        twist.linear.y = 0
+                        twist.linear.z = 0
+                        twist.angular.x = 0
+                        twist.angular.y = 0
+                        if msg.pose.position.x < .05 and msg.pose.position.x > -.05:
+                            twist.angular.z = 0
+                        elif msg.pose.position.x > .1:
+                            twist.angular.z = 3.14/4
+                        else:
+                            twist.angular.z = 3*3.14/4
+                            
+                        twist.linear.x = marker_base.point.x
+                        self.twistPub.publish(twist)
+                        #print "done with twist"
+                        #self.goto_point(local_goal.point.x,local_goal.point.y)
+                        self.takeOnePicture = True
+                        self.doNewVictim = True
                     else:
-                        twist.angular.z = 3*3.14/4
-                        
-                    twist.linear.x = marker_base.point.x
-                    self.twistPub.publish(twist)
-                    print "done with twist"
-                    #self.goto_point(local_goal.point.x,local_goal.point.y)
-                    self.takeOnePicture = True
-                    self.doNewVictim = True
-                else:
-                    self.doNewVictim = True
+                        self.doNewVictim = True
 				
+                else:
+                    self.finding = True
             else:
+                #print "in sub-if-check1(else)/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
+                self.finding = True #???? rm
+
+            #if msg.pose.position.z <= 9999999 and not self.closeToVictimforPicture:# and self.closeToVictimforPicture: ##stuff in here might need to be redone to fit current logic not sure as of now
+                #print "in if-check2/detect_callback/Detector_Alvar/detect_alvar.py"
+                #self.closeToVictimforPicture = True
+                #self.ac.cancel_all_goals()
+                #self.takeOnePicture = True
+                #rospy.sleep(1)
                 self.finding = True
-        else:
-            print "in sub-if-check1(else)/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
-            self.finding = True #???? rm
+                #self.closeToVictimforPicture = False
+                
+                #self.victim.id += 1
+                #rospy.loginfo("Victim takeOnePicture")
+                #rospy.loginfo(self.victim)
+            #self.pub.publish(self.victim)
+                #rospy.loginfo(msg.pose.position)
+                #print "\nx: " + str(msg.pose.position.x)
+                #print "\ny: " + str(msg.pose.position.y)
+                #print "\nz: " + str(msg.pose.position.z)
 
-        #if msg.pose.position.z <= 9999999 and not self.closeToVictimforPicture:# and self.closeToVictimforPicture: ##stuff in here might need to be redone to fit current logic not sure as of now
-            #print "in if-check2/detect_callback/Detector_Alvar/detect_alvar.py"
-            #self.closeToVictimforPicture = True
-            #self.ac.cancel_all_goals()
-            #self.takeOnePicture = True
-            #rospy.sleep(1)
-            self.finding = True
-            #self.closeToVictimforPicture = False
-            #self.victim.point = msg.pose.position
-            #self.victim.id += 1
-            #rospy.loginfo("Victim takeOnePicture")
-            #rospy.loginfo(self.victim)
-        self.pub.publish(self.victim)
-            #rospy.loginfo(msg.pose.position)
-            #print "\nx: " + str(msg.pose.position.x)
-            #print "\ny: " + str(msg.pose.position.y)
-            #print "\nz: " + str(msg.pose.position.z)
-
-        #if msg.pose.position.z <= .5:
-            #self.takeOnePicture = True
+            #if msg.pose.position.z <= .5:
+                #self.takeOnePicture = True
 
     def map_callback(self, map_msg):
         print "in map_callback/Detector_Alvar/detect_alvar.py"
@@ -187,23 +200,24 @@ class Detector_Alvar(object):
 
     #THIS HANDLES PICTURE-TAKING CAPABILITY
     def icallback(self,img):
+        self.ranTime = img.header.stamp
         #print "in icallback/Detector_Alvar/detect_alvar.py"
         if self.imgCounter < 50 and self.takeOnePicture:
-            print "in if-check1/icallback/Detector_Alvar/detect_alvar.py"
+            #print "in if-check1/icallback/Detector_Alvar/detect_alvar.py"
             try:
                 self.takeOnePicture = False
                 self.victim.image = img
                 self.pub.publish(self.victim)               
-                #cv_image = self.bridge.imgmsg_to_cv2(img,"bgr8")
-                #cv2.imwrite(str(self.imgCounter) + "image.jpg",cv_image)
-                #self.imgCounter = self.imgCounter + 1
-                print "#############################3image made"
+                cv_image = self.bridge.imgmsg_to_cv2(img,"bgr8")
+                cv2.imwrite(str(self.imgCounter) + "image.jpg",cv_image)
+                self.imgCounter = self.imgCounter + 1
+                #print "#############################3image made"
             except CvBridgeError, e:
-                print "bye"
+                #print "bye"
                 print e
 
     def goal_message(self, x_target, y_target, theta_target):
-        print "in goal_message/Detector_Alvar/detect_alvar.py"
+        #print "in goal_message/Detector_Alvar/detect_alvar.py"
         """ Create a goal message in the base_link coordinate frame"""
 
         quat = tf.transformations.quaternion_from_euler(0, 0, theta_target)
@@ -223,7 +237,7 @@ class Detector_Alvar(object):
         return goal
 
     def goto_point(self, x_target, y_target, theta_target=0):
-        print "in goto_point/Detector_Alvar/detect_alvar.py"
+        #print "in goto_point/Detector_Alvar/detect_alvar.py"
 
         """ Move to a location relative to the robot's current position """
 
@@ -284,17 +298,17 @@ class Detector_Alvar(object):
             self.listOfVictims.append((self.ID, local_goal.point.x, local_goal.point.y, local_goal.point.z))
             self.victim.id += 1
             self.ID += 1
-            print self.listOfVictims
+            #print self.listOfVictims
             return True
 
         if newVictim:
             self.listOfVictims.append((self.ID, local_goal.point.x, local_goal.point.y, local_goal.point.z))	
             self.victim.id += 1
             self.ID += 1
-            print self.listOfVictims
+            #print self.listOfVictims
             return True
         else:
-            print self.listOfVictims
+            #print self.listOfVictims
             return False
 
     def checkPoint(self,x,y):
