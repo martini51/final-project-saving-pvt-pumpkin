@@ -12,7 +12,7 @@ from cv_bridge import CvBridge,CvBridgeError
 from visualization_msgs.msg import Marker
 from nav_msgs.msg import OccupancyGrid
 from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
-from geometry_msgs.msg import Pose, Point, PointStamped
+from geometry_msgs.msg import Pose, Point, PointStamped, Twist
 from actionlib_msgs.msg import GoalStatus
 from sensor_msgs.msg import Image
 from zeta_rescue.msg import Victim
@@ -22,11 +22,15 @@ class Detector_Alvar(object):
     def __init__(self):
         rospy.init_node("detect_node")
 
-
+        mins = 4
         self.closeToVictimforPicture = False
         self.takeOnePicture = False
         self.finding = True
         self.doNewVictim = True
+        self.finishedGoingHome = False
+        self.time = 60*mins
+        self.startTime = None
+        self.ranTime = None
 
         self.tf_listener = tf.TransformListener()
 
@@ -60,82 +64,102 @@ class Detector_Alvar(object):
         self.state_names[GoalStatus.LOST] = "LOST"
         
         self.pub = rospy.Publisher('victim', Victim, queue_size=10)
+        self.twistPub = rospy.Publisher('/cmd_vel_mux/input/navi', Twist, queue_size=1)
         rospy.Subscriber('map', OccupancyGrid, self.map_callback)
         rospy.Subscriber('/camera/rgb/image_raw',Image,self.icallback)
         rospy.Subscriber('/visualization_marker', Marker, self.detect_callback,queue_size=1)
 
         while self.map_msg is None and not rospy.is_shutdown():
-            print "in while-loop1/init/Detector_Alvar/detect_alvar.py"
+            #print "in while-loop1/init/Detector_Alvar/detect_alvar.py"
             rospy.loginfo("Waiting for map...")
             rospy.sleep(.1)
 
         self.map = map_utils.Map(self.map_msg)
 
+        while self.startTime is None:
+            self.startTime = self.map_msg.header.stamp
+
         self.count = 0
         x_target = 0
         y_target = 0
-        while not rospy.is_shutdown() and self.finding:
+
+        while not rospy.is_shutdown() and self.finding and len(self.listOfVictims) != 4 and (self.time - (self.ranTime.secs - self.startTime.secs)) > 30:
             x_target = random.uniform(-10,10)
             y_target = random.uniform(-10,10)
 
-            #print "try random point: ", x_target, ", ", y_target
             if self.map.get_cell(x_target, y_target) == 0:
                 if self.checkPoint(x_target,y_target):
-                    print "point was valid. going to", x_target,", ", y_target
                     self.goto_point(x_target, y_target)
                     while(not self.finding and not rospy.is_shutdown()):
                         rospy.sleep(.1)
 
+        self.finishedGoingHome = True
+
+        self.goto_point(self.curX, self.curY)
+        print "done victims are here \n" + str(self.listOfVictims)
+
     def detect_callback(self, msg):
-        if self.finding:
-            self.finding = False
-            if  (msg.pose.position.y < 0.3 and msg.pose.position.y >= -0.3):
-                if self.doNewVictim and self.newVictim(msg):
-                    self.doNewVictim = False
-                    self.ac.cancel_all_goals()
-                    print "@@@@@@@@@@@@@@@@@@@@should have aborted all goals"
-                    self.closeToVictimforPicture = False
-                    point_stamped = PointStamped()
-                    point_stamped.header = msg.header
-                    point_stamped.point = msg.pose.position
+        if not self.finishedGoingHome:
+            if self.finding:
+                self.finding = False
+                if (msg.pose.position.y < 0.3 and msg.pose.position.y >= -0.3):
+                    if self.doNewVictim and self.newVictim(msg):
+                        self.doNewVictim = False
+                        self.ac.cancel_all_goals()
+                        self.closeToVictimforPicture = False
+                        point_stamped = PointStamped()
+                        point_stamped.header = msg.header
+                        point_stamped.point = msg.pose.position
 
-                    self.tf_listener.waitForTransform(point_stamped.header.frame_id,
-                    '/map',     # to here 
-                    point_stamped.header.stamp,
-                    rospy.Duration(1.0))
+                        self.tf_listener.waitForTransform(point_stamped.header.frame_id,
+                        '/map',     # to here 
+                        point_stamped.header.stamp,
+                        rospy.Duration(1.0))
 
-                    self.tf_listener.waitForTransform(point_stamped.header.frame_id,
-                    '/base_link',     # to here 
-                    point_stamped.header.stamp,
-                    rospy.Duration(1.0))
+                        self.tf_listener.waitForTransform(point_stamped.header.frame_id,
+                        '/base_link',     # to here 
+                        point_stamped.header.stamp,
+                        rospy.Duration(1.0))
 
-                    marker_map = self.tf_listener.transformPoint('/map', point_stamped)
+                        marker_map = self.tf_listener.transformPoint('/map', point_stamped)
 
-                    marker_base = self.tf_listener.transformPoint('/base_link', point_stamped)
+                        marker_base = self.tf_listener.transformPoint('/base_link', point_stamped)
 
-                    marker_base.point.x -= .6
+                        self.victim.point = marker_map.point
 
-                    self.tf_listener.waitForTransform(marker_base.header.frame_id,
-                    '/map',     # to here 
-                    marker_base.header.stamp,
-                    rospy.Duration(1.0))				
+                        marker_base.point.x -= .4
 
-                    local_goal = PointStamped()
+                        self.tf_listener.waitForTransform(marker_base.header.frame_id,
+                        '/map',     # to here 
+                        marker_base.header.stamp,
+                        rospy.Duration(1.0))				
 
-                    local_goal = self.tf_listener.transformPoint('/map', marker_base)
-                    self.goto_point(local_goal.point.x,local_goal.point.y)
-                    self.takeOnePicture = True
-                    self.doNewVictim = True
-                else:
-                    self.doNewVictim = True
+                        local_goal = PointStamped()
+
+                        local_goal = self.tf_listener.transformPoint('/map', marker_base)
+                        twist = Twist()
+                        twist.linear.y = 0
+                        twist.linear.z = 0
+                        twist.angular.x = 0
+                        twist.angular.y = 0
+                        if msg.pose.position.x < .05 and msg.pose.position.x > -.05:
+                            twist.angular.z = 0
+                        elif msg.pose.position.x > .1:
+                            twist.angular.z = 3.14/4
+                        else:
+                            twist.angular.z = 3*3.14/4
+                            
+                        twist.linear.x = marker_base.point.x
+                        self.twistPub.publish(twist)
+                        self.takeOnePicture = True
+                        self.doNewVictim = True
+                    else:
+                        self.doNewVictim = True
 				
+                else:
+                    self.finding = True
             else:
                 self.finding = True
-        else:
-            self.finding = True #???? rm
-            self.finding = True
-
-        self.pub.publish(self.victim)
 
     def map_callback(self, map_msg):
         """ map_msg will be of type OccupancyGrid """
@@ -143,14 +167,18 @@ class Detector_Alvar(object):
 
     #THIS HANDLES PICTURE-TAKING CAPABILITY
     def icallback(self,img):
+        self.ranTime = img.header.stamp
         if self.imgCounter < 50 and self.takeOnePicture:
             try:
                 self.takeOnePicture = False
                 self.victim.image = img
-                self.pub.publish(self.victim)
-                print "#############################3image made"
+                self.pub.publish(self.victim)               
+                cv_image = self.bridge.imgmsg_to_cv2(img,"bgr8")
+                cv2.imwrite(str(self.imgCounter) + "image.jpg",cv_image)
+                self.imgCounter = self.imgCounter + 1
+
+
             except CvBridgeError, e:
-                print "bye"
                 print e
 
     def goal_message(self, x_target, y_target, theta_target):
@@ -202,9 +230,8 @@ class Detector_Alvar(object):
         # Should be either "SUCCEEDED" or "ABORTED"
         state_name = self.state_names[self.ac.get_state()]
         rospy.loginfo("State      : {}".format(state_name))
-        ########## i believe there should be a addPoints call here but im not sure on the logic of the rest of the code and ill need to test the cancel call to make sure it doesnt add the points twice
 
-    def newVictim(self,msg):####################  the x will fail here but you can get the x from the msg.pose.x or whatever 
+    def newVictim(self,msg): 
         #will check if the position is a new victim
         point_stamped = PointStamped()
         point_stamped.header = msg.header
@@ -233,17 +260,17 @@ class Detector_Alvar(object):
             self.listOfVictims.append((self.ID, local_goal.point.x, local_goal.point.y, local_goal.point.z))
             self.victim.id += 1
             self.ID += 1
-            print self.listOfVictims
+            #print self.listOfVictims
             return True
 
         if newVictim:
             self.listOfVictims.append((self.ID, local_goal.point.x, local_goal.point.y, local_goal.point.z))	
             self.victim.id += 1
             self.ID += 1
-            print self.listOfVictims
+            #print self.listOfVictims
             return True
         else:
-            print self.listOfVictims
+            #print self.listOfVictims
             return False
 
     def checkPoint(self,x,y):

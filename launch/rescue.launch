@@ -2,7 +2,7 @@
 
 <!-- Read Required Command Line Arguments: -->
 <arg name="initial_pose" default="$(find zeta_rescue)/data/initial_pose.yaml"/>
-<arg name="map_file" />
+<arg name="map_file" default="$(find zeta_rescue)/data/engeo_map.yaml" />
 <arg name="landmark_file" default="$(find zeta_rescue)/data/landmark_file.csv"/>
 
 
