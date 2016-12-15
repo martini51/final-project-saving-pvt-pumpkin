@@ -12,7 +12,7 @@ from cv_bridge import CvBridge,CvBridgeError
 from visualization_msgs.msg import Marker
 from nav_msgs.msg import OccupancyGrid
 from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
-from geometry_msgs.msg import Pose, Point, PointStamped
+from geometry_msgs.msg import Pose, Point, PointStamped, Twist
 from actionlib_msgs.msg import GoalStatus
 from sensor_msgs.msg import Image
 from zeta_rescue.msg import Victim
@@ -61,6 +61,7 @@ class Detector_Alvar(object):
         self.state_names[GoalStatus.LOST] = "LOST"
         
         self.pub = rospy.Publisher('victim', Victim, queue_size=10)
+        self.twistPub = rospy.Publisher('/cmd_vel_mux/input/navi', Twist, queue_size=1)
         rospy.Subscriber('map', OccupancyGrid, self.map_callback)
         rospy.Subscriber('/camera/rgb/image_raw',Image,self.icallback)
         rospy.Subscriber('/visualization_marker', Marker, self.detect_callback,queue_size=1)
@@ -75,7 +76,7 @@ class Detector_Alvar(object):
         self.count = 0
         x_target = 0
         y_target = 0
-        while not rospy.is_shutdown() and self.finding:
+        while not rospy.is_shutdown() and self.finding and len(self.listOfVictims) != 2:
             #print "in while-loop2/init/Detector_Alvar/detect_alvar.py"
             #while not self.map.get_cell(x_target, y_target) == 0:
             x_target = random.uniform(-10,10)
@@ -88,6 +89,8 @@ class Detector_Alvar(object):
                     self.goto_point(x_target, y_target)
                     while(not self.finding and not rospy.is_shutdown()):
                         rospy.sleep(.1)
+
+        self.goto_point(self.curX, self.curY)
 
     def detect_callback(self, msg):
         #print "in detect_callback/Detector_Alvar/detect_alvar.py"
@@ -119,7 +122,7 @@ class Detector_Alvar(object):
 
                     marker_base = self.tf_listener.transformPoint('/base_link', point_stamped)
 
-                    marker_base.point.x -= .6
+                    marker_base.point.x -= .4
 
                     self.tf_listener.waitForTransform(marker_base.header.frame_id,
                     '/map',     # to here 
@@ -129,7 +132,22 @@ class Detector_Alvar(object):
                     local_goal = PointStamped()
 
                     local_goal = self.tf_listener.transformPoint('/map', marker_base)
-                    self.goto_point(local_goal.point.x,local_goal.point.y)
+                    twist = Twist()
+                    twist.linear.y = 0
+                    twist.linear.z = 0
+                    twist.angular.x = 0
+                    twist.angular.y = 0
+                    if msg.pose.position.x < .1 and msg.pose.position.x > -.1:
+                        twist.angular.z = 0
+                    elif msg.pose.position.x > .2:
+                        twist.angular.z = 3.14/4
+                    else:
+                        twist.angular.z = 3*3.14/4
+                        
+                    twist.linear.x = marker_base.point.x
+                    self.twistPub.publish(twist)
+                    print "done with twist"
+                    #self.goto_point(local_goal.point.x,local_goal.point.y)
                     self.takeOnePicture = True
                     self.doNewVictim = True
                 else:
