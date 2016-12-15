@@ -20,7 +20,6 @@ from zeta_rescue.msg import Victim
 class Detector_Alvar(object):
 
     def __init__(self):
-        print "in init/Detector_Alvar/detect_alvar.py"
         rospy.init_node("detect_node")
 
 
@@ -76,28 +75,23 @@ class Detector_Alvar(object):
         x_target = 0
         y_target = 0
         while not rospy.is_shutdown() and self.finding:
-            #print "in while-loop2/init/Detector_Alvar/detect_alvar.py"
-            #while not self.map.get_cell(x_target, y_target) == 0:
             x_target = random.uniform(-10,10)
             y_target = random.uniform(-10,10)
+
             #print "try random point: ", x_target, ", ", y_target
             if self.map.get_cell(x_target, y_target) == 0:
                 if self.checkPoint(x_target,y_target):
                     print "point was valid. going to", x_target,", ", y_target
-                    #self.count += 1
                     self.goto_point(x_target, y_target)
                     while(not self.finding and not rospy.is_shutdown()):
                         rospy.sleep(.1)
 
     def detect_callback(self, msg):
-        #print "in detect_callback/Detector_Alvar/detect_alvar.py"
         if self.finding:
-            #print "in if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
             self.finding = False
             if  (msg.pose.position.y < 0.3 and msg.pose.position.y >= -0.3):
                 if self.doNewVictim and self.newVictim(msg):
                     self.doNewVictim = False
-                    print "in sub-if-check1/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
                     self.ac.cancel_all_goals()
                     print "@@@@@@@@@@@@@@@@@@@@should have aborted all goals"
                     self.closeToVictimforPicture = False
@@ -138,54 +132,28 @@ class Detector_Alvar(object):
             else:
                 self.finding = True
         else:
-            print "in sub-if-check1(else)/if-check1/detect_callback/Detector_Alvar/detect_alvar.py"
             self.finding = True #???? rm
-
-        #if msg.pose.position.z <= 9999999 and not self.closeToVictimforPicture:# and self.closeToVictimforPicture: ##stuff in here might need to be redone to fit current logic not sure as of now
-            #print "in if-check2/detect_callback/Detector_Alvar/detect_alvar.py"
-            #self.closeToVictimforPicture = True
-            #self.ac.cancel_all_goals()
-            #self.takeOnePicture = True
-            #rospy.sleep(1)
             self.finding = True
-            #self.closeToVictimforPicture = False
-            #self.victim.point = msg.pose.position
-            #self.victim.id += 1
-            #rospy.loginfo("Victim takeOnePicture")
-            #rospy.loginfo(self.victim)
-        self.pub.publish(self.victim)
-            #rospy.loginfo(msg.pose.position)
-            #print "\nx: " + str(msg.pose.position.x)
-            #print "\ny: " + str(msg.pose.position.y)
-            #print "\nz: " + str(msg.pose.position.z)
 
-        #if msg.pose.position.z <= .5:
-            #self.takeOnePicture = True
+        self.pub.publish(self.victim)
 
     def map_callback(self, map_msg):
-        print "in map_callback/Detector_Alvar/detect_alvar.py"
         """ map_msg will be of type OccupancyGrid """
         self.map_msg = map_msg
 
     #THIS HANDLES PICTURE-TAKING CAPABILITY
     def icallback(self,img):
-        #print "in icallback/Detector_Alvar/detect_alvar.py"
         if self.imgCounter < 50 and self.takeOnePicture:
-            print "in if-check1/icallback/Detector_Alvar/detect_alvar.py"
             try:
                 self.takeOnePicture = False
                 self.victim.image = img
-                self.pub.publish(self.victim)               
-                #cv_image = self.bridge.imgmsg_to_cv2(img,"bgr8")
-                #cv2.imwrite(str(self.imgCounter) + "image.jpg",cv_image)
-                #self.imgCounter = self.imgCounter + 1
+                self.pub.publish(self.victim)
                 print "#############################3image made"
             except CvBridgeError, e:
                 print "bye"
                 print e
 
     def goal_message(self, x_target, y_target, theta_target):
-        print "in goal_message/Detector_Alvar/detect_alvar.py"
         """ Create a goal message in the base_link coordinate frame"""
 
         quat = tf.transformations.quaternion_from_euler(0, 0, theta_target)
@@ -205,7 +173,6 @@ class Detector_Alvar(object):
         return goal
 
     def goto_point(self, x_target, y_target, theta_target=0):
-        print "in goto_point/Detector_Alvar/detect_alvar.py"
 
         """ Move to a location relative to the robot's current position """
 
